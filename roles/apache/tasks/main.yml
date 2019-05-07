@@ -1,0 +1,40 @@
+---
+
+- include: uninstall.yml
+  tags: uninstall
+
+- name: Install Apache service
+  apt: name={{ item }} state=present update_cache=yes install-recommends=yes
+  loop: "{{ pkg }}"
+  tags: install,config
+
+- name: Configure Apache service
+  template: src=apache2.conf.j2 dest=/etc/apache2/apache2.conf owner=root group=root mode='0644'
+  tags: install,config
+
+- name: Configure Apache ports
+  template: src=ports.conf.j2 dest=/etc/apache2/ports.conf owner=root group=root mode='0644'
+  tags: install,config
+
+- name: Configure Apache virtual hosts
+  template: src=website.conf.j2 dest=/etc/apache2/sites-available/{{ item.name }}.conf owner=root group=root mode='0644'
+  loop: "{{ apache.websites }}"
+  tags: install,config
+
+- name: Install websites
+  unarchive: src=files/{{ item.tarball }} dest={{ apache.root }} owner=root group=root
+  loop: "{{ apache.websites }}"
+  tags: install
+
+- name: Fix rights on website directory
+  file: path={ apache.root }}/{{ item.name }} mode='0755' state=directory
+  loop: "{{ apache.websites }}"
+  tags: install,config
+
+- name: Enable websites
+  file: src="/etc/apache2/sites-available/{{ item.name }}.conf" dest="/etc/apache2/sites-enabled/{{ item.name }}.conf" state=link
+  loop: "{{ apache.websites }}"
+  tags: install,config
+
+- name: Restart Apache service
+  service: name=apache2 state=restarted

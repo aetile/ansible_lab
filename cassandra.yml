@@ -1,0 +1,6 @@
+- name: Install DSE
+  hosts: cassandra
+  gather_facts: yes
+  become: yes
+  roles:
+    - cassandra

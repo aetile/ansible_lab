@@ -1,0 +1,10 @@
+<VirtualHost {{ item.vhost.ip }}:{{ item.vhost.port }}>
+	ServerName {{ item.server.name }}
+	ServerAlias {{ item.server.alias }}
+
+	ServerAdmin {{ apache.email }}
+	DocumentRoot {{ apache.root }}/{{ item.name }}
+
+	ErrorLog ${APACHE_LOG_DIR}/error.log
+	CustomLog ${APACHE_LOG_DIR}/access.log combined
+</VirtualHost>

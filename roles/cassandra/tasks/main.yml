@@ -1,0 +1,177 @@
+---
+
+- name: Uninstall
+  include: uninstall.yml
+  when: cleaninstall
+
+- name: Create OS users
+  user:
+    name: "{{ item }}"
+    password: "{{ item }}"
+    home: "/home/{{ item }}"
+    shell: /bin/bash
+    comment: "{{ item }} user"
+  loop: ['cassandra','opscenter']
+  tags: install, config
+
+- name: Add Datastax APT repo key
+  apt_key:
+    url:  "{{ repo.proto }}://{{ repo.key }}"
+  when: ansible_os_family == 'Debian'
+  tags: install, config
+
+- name: Install APT Datastax repository
+  apt_repository:
+    repo: "deb {{ repo.proto }}://{{ repo.user_name }}:{{ repo.user_key }}@{{ repo.ref }}"
+    validate_certs: no
+    filename: datastax
+  when: ansible_os_family == 'Debian'
+  tags: install, config
+
+- name: Install Required DEB packages
+  apt:
+    name: "{{ item }}"
+    autoremove: yes
+    install_recommends: yes
+    update_cache: yes
+  loop: "{{ pkg.debian }}"
+  when: ansible_os_family == 'Debian'
+  tags: install
+
+- name: Fix directory rights
+  shell: "chown -R cassandra:cassandra /etc/dse/*;chown -R cassandra:cassandra /etc/datastax-agent/*;chown -R opscenter:opscenter /etc/opscenter/*"
+  tags: install, config
+
+- name: Configure Cassandra options
+  template:
+    dest: "/etc/dse/cassandra/cassandra.yaml"
+    src: 'cassandra.yaml.j2'
+    owner: 'cassandra'
+    group: 'cassandra'
+    mode: '0644'
+  tags: install, config
+
+- name: Configure JVM options
+  template:
+    dest: "/etc/dse/cassandra/jvm.options"
+    src: 'jvm.options.j2'
+    owner: 'cassandra'
+    group: 'cassandra'
+    mode: '0644'
+  tags: install, config
+
+- name: Create Opscenter configuration directory
+  file:
+    path: '/etc/opscenter/clusters'
+    owner: 'opscenter'
+    group: 'opscenter'
+    mode: '0755'
+    state: directory
+  tags: install, config
+  when: inventory_hostname in groups['opscenter'] 
+
+- name: Configure Opscenter
+  template:
+    dest: "/etc/opscenter/opscenterd.conf"
+    src: 'opscenterd.conf.j2'
+    owner: 'opscenter'
+    group: 'opscenter'
+    mode: '0644'
+  tags: install, config
+  when: inventory_hostname in groups['opscenter'] 
+
+- name: Add Cassandra cluster to Opscenter
+  template:
+    dest: "/etc/opscenter/clusters/{{ cluster_name }}.conf"
+    src: 'cluster.conf.j2'
+    owner: 'opscenter'
+    group: 'opscenter'
+    mode: '0644'
+  tags: install, config
+  when: inventory_hostname in groups['opscenter'] 
+
+- name: Configure Opscenter agents
+  template:
+    dest: "/var/lib/datastax-agent/conf/address.yaml"
+    src: 'address.yml.j2'
+    owner: 'cassandra'
+    group: 'cassandra'
+    mode: '0644'
+  tags: install, config
+  when: inventory_hostname not in groups['opscenter'] 
+
+- name: Remove Apache default website
+  shell: "rm -f /etc/{{ apache_pkg }}/sites-enabled/*;rm -f /etc/{{ apache_pkg }}/sites-available/*"
+  tags: install, config
+  when: inventory_hostname in groups['opscenter'] 
+
+- name: Redirect Apache to Opscenter
+  template:
+    dest: "/etc/{{ apache_pkg }}/sites-available/opscenter.conf"
+    src: 'vhost.conf.j2'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  tags: install, config
+  when: inventory_hostname in groups['opscenter'] 
+
+- name: Enable Apache configuration for Opscenter
+  file:
+    dest: "/etc/{{ apache_pkg }}/sites-enabled/opscenter.conf"
+    src: "/etc/{{ apache_pkg }}/sites-available/opscenter.conf"
+    state: link
+  tags: install, config
+  when: inventory_hostname in groups['opscenter'] 
+
+- name: Enable proxy modules for Apache
+  command: a2enmod proxy proxy_http
+  tags: install, config
+  when: inventory_hostname in groups['opscenter'] 
+
+- name: Start DSE seed nodes
+  service:
+    name: dse
+    state: restarted
+  tags: install, config
+  when: is_seed|bool
+
+- name: Start DSE non-seed nodes
+  service:
+    name: dse
+    state: restarted
+  tags: install, config
+  when: not is_seed|bool
+
+- name: Start Opscenter service
+  service: 
+    name: opscenterd
+    state: restarted
+  tags: install, config
+
+- name: Start Apache service
+  service: 
+    name: "{{ apache_pkg }}"
+    state: restarted
+  tags: install, config
+  when: inventory_hostname in groups['opscenter'] 
+
+- name: Wait for CQL ports
+  wait_for:
+    host: "{{ ansible_hostname }}"
+    port: "{{ cql_port }}"
+    state: started
+    sleep: 5
+
+- name: Wait for Opscenter port
+  wait_for:
+    host: "{{ opscenter.address }}"
+    port: "{{ opscenter.http_port }}"
+    state: started
+    sleep: 5
+  when: inventory_hostname in groups['opscenter']
+
+- name: Start Datastax agents
+  service: 
+    name: datastax-agent
+    state: restarted
+  tags: install, config

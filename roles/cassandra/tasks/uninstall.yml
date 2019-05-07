@@ -1,0 +1,43 @@
+---
+
+- name: Stop Datastax agents
+  service:
+    name: datastax-agent
+    state: stopped
+  ignore_errors: yes
+
+- name: Stop Opscenter agents
+  service: 
+    name: opscenterd
+    state: stopped
+  ignore_errors: yes
+
+- name: Stop Apache service
+  service:
+    name: "{{ apache_pkg }}"
+    state: stopped
+  ignore_errors: yes
+
+- name: Stop DSE service
+  service:
+    name: dse
+    state: stopped
+  ignore_errors: yes
+
+- name: Kill remaining processes
+  shell: "if ps -aux | grep cassandra | grep -v grep >> /dev/null;then killall -u cassandra;fi;if ps -aux | grep opscenter | grep -v grep >> /dev/null;then killall -u opscenter;fi;"
+
+- name: Remove OS users
+  user:
+    name: "{{ item }}"
+    state: absent
+  loop: ['cassandra', 'opscenter']
+
+- name: Remove DEB packages
+  apt:
+    name: "{{ item }}"
+    autoremove: yes
+    update_cache: yes
+    state: absent
+  loop: "{{ pkg.debian }}"
+

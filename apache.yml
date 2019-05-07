@@ -1,0 +1,6 @@
+- name: Install example websites
+  hosts: webservers
+  gather_facts: yes
+  become: no
+  roles:
+    - apache

@@ -1,0 +1,17 @@
+---
+
+- name: Stop Apache service
+  service: name=apache2 state=stopped
+
+- name: Remove config files
+  command: "rm -rf {{ item }}"
+  loop:
+    - /etc/apache2/sites-available/*
+    - /etc/apache2/Sites-enabled/*
+
+- name: Remove websites
+  command: "rm -rf {{ apache.root }}/{{ item.name }}"
+  loop: "{{ apache.websites }}"
+
+- name: Remove cron file
+  cron: cron_file=apache state=absent

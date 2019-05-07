@@ -1,0 +1,22 @@
+cleaninstall: yes
+pkg:
+  redhat: [""]
+  debian: ["libaio1","openjdk-8-jre","dse","dse-libcassandra","dse-liblog4j","dse-libsolr","dse-libspark","dse-libgraph","dse-libtomcat","datastax-agent","apache2","opscenter"]
+apache_pkg: "apache2"
+cluster_name: "Test_Cluster"
+listen_address: "{{ ansible_eth0.ipv4.address }}"
+seeds: "<comma separated seeds IP list>"
+cql_port: "9042"
+java_heap_size: "512M"
+opscenter:
+  address: '<opscenter host IP>'
+  http_port: "8888"
+  jmx_port: "7199"
+  auth: no
+  ssl: no
+repo:
+  proto: "https"
+  ref: "debian.datastax.com/enterprise stable main"
+  key: "debian.datastax.com/debian/repo_key"
+  user_key: "<your Datastax key>"
+  user_name: "<your Datastax login>"
